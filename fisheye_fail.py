@@ -3,7 +3,7 @@ import numpy as np
 import json
 
 def main():
-    with open('data/fisheye-failure-case.json', 'r') as file:
+    with open('data/fisheye-failure-case1.json', 'r') as file:
         data = json.load(file)
         object_points = [np.asarray(pts) for pts in data['object points']]
         image_points = [np.asarray(pts) for pts in data['image points']]

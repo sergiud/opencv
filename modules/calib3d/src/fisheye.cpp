@@ -131,8 +131,7 @@ void cv::fisheye::projectPoints(InputArray objectPoints, OutputArray imagePoints
             Y[2] = 1;
         Vec2d x(Y[0]/Y[2], Y[1]/Y[2]);
 
-        double r2 = x.dot(x);
-        double r = std::sqrt(r2);
+        double r = std::hypot(x[0], x[1]);
 
         // Angle of the incoming ray:
         double theta = atan(r);
@@ -142,8 +141,8 @@ void cv::fisheye::projectPoints(InputArray objectPoints, OutputArray imagePoints
 
         double theta_d = theta + k[0]*theta3 + k[1]*theta5 + k[2]*theta7 + k[3]*theta9;
 
-        double inv_r = r > 1e-8 ? 1.0/r : 1;
-        double cdist = r > 1e-8 ? theta_d * inv_r : 1;
+        double inv_r = r != 0.0 ? 1.0/r : 1;
+        double cdist = r != 0.0 ? theta_d * inv_r : 1;
 
         Vec2d xd1 = x * cdist;
         Vec2d xd3(xd1[0] + alpha*xd1[1], xd1[1]);
@@ -182,13 +181,13 @@ void cv::fisheye::projectPoints(InputArray objectPoints, OutputArray imagePoints
             Vec3d dr2dT  = 2 * x[0] *  dxdT[0] + 2 * x[1] *  dxdT[1];
 
             //double r = std::sqrt(r2);
-            double drdr2 = r > 1e-8 ? 1.0/(2*r) : 1;
+            double drdr2 = r != 0.0 ? 1.0/(2*r) : 1;
             Vec3d drdom = drdr2 * dr2dom;
             Vec3d drdT  = drdr2 * dr2dT;
 
             // Angle of the incoming ray:
             //double theta = atan(r);
-            double dthetadr = 1.0/(1+r2);
+            double dthetadr = 1.0/(1+x.dot(x));
             Vec3d dthetadom = dthetadr * drdom;
             Vec3d dthetadT  = dthetadr *  drdT;
 
@@ -290,8 +289,7 @@ void cv::fisheye::distortPoints(InputArray undistorted, OutputArray distorted, I
     {
         Vec2d x = undistorted.depth() == CV_32F ? (Vec2d)Xf[i] : Xd[i];
 
-        double r2 = x.dot(x);
-        double r = std::sqrt(r2);
+        double r = std::hypot(x[0], x[1]);
 
         // Angle of the incoming ray:
         double theta = atan(r);
@@ -301,8 +299,8 @@ void cv::fisheye::distortPoints(InputArray undistorted, OutputArray distorted, I
 
         double theta_d = theta + k[0]*theta3 + k[1]*theta5 + k[2]*theta7 + k[3]*theta9;
 
-        double inv_r = r > 1e-8 ? 1.0/r : 1;
-        double cdist = r > 1e-8 ? theta_d * inv_r : 1;
+        double inv_r = r != 0.0 ? 1.0/r : 1;
+        double cdist = r != 0.0 ? theta_d * inv_r : 1;
 
         Vec2d xd1 = x * cdist;
         Vec2d xd3(xd1[0] + alpha*xd1[1], xd1[1]);
@@ -377,7 +375,7 @@ void cv::fisheye::undistortPoints( InputArray distorted, OutputArray undistorted
         Vec2d pi = sdepth == CV_32F ? (Vec2d)srcf[i] : srcd[i];  // image point
         Vec2d pw((pi[0] - c[0])/f[0], (pi[1] - c[1])/f[1]);      // world point
 
-        double theta_d = sqrt(pw[0]*pw[0] + pw[1]*pw[1]);
+        double theta_d = hypot(pw[0], pw[1]);
 
         // the current camera model is only valid up to 180 FOV
         // for larger FOV the loop below does not converge
@@ -389,7 +387,7 @@ void cv::fisheye::undistortPoints( InputArray distorted, OutputArray undistorted
 
         double scale = 0.0;
 
-        if (fabs(theta_d) > 1e-8)
+        if (theta_d != 0.0)
         {
             // compensate distortion iteratively
 
@@ -523,7 +521,7 @@ void cv::fisheye::initUndistortRectifyMap( InputArray K, InputArray D, InputArra
             {
                 double x = _x/_w, y = _y/_w;
 
-                double r = sqrt(x*x + y*y);
+                double r = hypot(x,y);
                 double theta = atan(r);
 
                 double theta2 = theta*theta, theta4 = theta2*theta2, theta6 = theta4*theta2, theta8 = theta4*theta4;
