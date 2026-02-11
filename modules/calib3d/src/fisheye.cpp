@@ -813,7 +813,7 @@ double cv::fisheye::calibrate(InputArrayOfArrays objectPoints, InputArrayOfArray
         ComputeJacobians(objectPoints, imagePoints, finalParam, omc, Tc, check_cond,thresh_cond, JJ2, ex3);
 
         Mat G;
-        solve(JJ2, ex3, G);
+        solve(JJ2, ex3, G, DECOMP_QR);
         currentParam = finalParam + alpha_smooth2*G;
 
         change = norm(Vec4d(currentParam.f[0], currentParam.f[1], currentParam.c[0], currentParam.c[1]) -
@@ -1061,7 +1061,7 @@ double cv::fisheye::stereoCalibrate(InputArrayOfArrays objectPoints, InputArrayO
         int a = cv::countNonZero(intrinsicLeft.isEstimate);
         int b = cv::countNonZero(intrinsicRight.isEstimate);
         cv::Mat deltas;
-        solve(J.t() * J, J.t()*e, deltas);
+        solve(J, e, deltas, DECOMP_QR);
         if (a > 0)
             intrinsicLeft = intrinsicLeft + deltas.rowRange(0, a);
         if (b > 0)
@@ -1241,7 +1241,7 @@ void cv::internal::ComputeExtrinsicRefine(const Mat& imagePoints, const Mat& obj
         else
         {
             Vec6d param_innov;
-            solve(J, ex.reshape(1, (int)ex.total()), param_innov, DECOMP_SVD + DECOMP_NORMAL);
+            solve(J, ex.reshape(1, (int)ex.total()), param_innov, DECOMP_QR);
 
             Vec6d param_up = extrinsics + param_innov;
             change = norm(param_innov)/norm(param_up);
