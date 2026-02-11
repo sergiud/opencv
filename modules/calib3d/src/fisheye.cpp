@@ -1306,11 +1306,13 @@ cv::Mat cv::internal::ComputeHomography(Mat m, Mat M)
         }
     }
 
-    if (Np > 4) L = L.t() * L;
+    // Do not multiply L by its transpose from the left to avoid squaring the
+    // condition number
     SVD svd(L);
     Mat hh = svd.vt.row(8) / svd.vt.row(8).at<double>(8);
     Mat Hrem = hh.reshape(1, 3);
     Mat H = inv_Hnorm * Hrem;
+    double prev_chi2 = std::numeric_limits<double>::max();
 
     if (Np > 4)
     {
@@ -1324,6 +1326,18 @@ cv::Mat cv::internal::ComputeHomography(Mat m, Mat M)
             divide(mrep, Mat::ones(3, 1, CV_64FC1) * mrep(Rect(0, 2, mrep.cols, 1)), mrep);
             Mat m_err = m(Rect(0,0, m.cols, 2)) - mrep(Rect(0,0, mrep.cols, 2));
             m_err = Mat(m_err.t()).reshape(1, m_err.cols * m_err.rows);
+
+            const double chi2 = m_err.dot(m_err);
+
+            // Ensure the squared error decreases and we stop iterating on
+            // overflow to avoid NaNs in InitExtrinsics
+            if (!(chi2 < prev_chi2))
+            {
+                break;
+            }
+
+            prev_chi2 = chi2;
+
             Mat MMM2, MMM3;
             multiply(Mat::ones(3, 1, CV_64FC1) * mrep(Rect(0, 0, mrep.cols, 1)), MMM, MMM2);
             multiply(Mat::ones(3, 1, CV_64FC1) * mrep(Rect(0, 1, mrep.cols, 1)), MMM, MMM3);
@@ -1343,7 +1357,10 @@ cv::Mat cv::internal::ComputeHomography(Mat m, Mat M)
                 }
             }
             divide(M, Mat::ones(3, 1, CV_64FC1) * mrep(Rect(0,2,mrep.cols,1)), MMM);
-            Mat hh_innov = (J.t() * J).inv() * (J.t()) * m_err;
+
+            Mat hh_innov;
+            solve(J, m_err, hh_innov, DECOMP_QR);
+
             Mat hhv_up = hhv - hh_innov;
             Mat tmp;
             vconcat(hhv_up, Mat::ones(1,1,CV_64FC1), tmp);
