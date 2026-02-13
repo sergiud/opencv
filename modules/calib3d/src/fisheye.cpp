@@ -64,9 +64,9 @@ class ExtrinsicsCallback : public cv::LMSolver::Callback
 public:
     ExtrinsicsCallback(const cv::Mat& imagePoints, const cv::Mat& objectPoints,
                        const cv::internal::IntrinsicParams& params)
-        : imagePoints(imagePoints)
-        , objectPoints(objectPoints)
-        , params(params)
+        : imagePoints_(imagePoints)
+        , objectPoints_(objectPoints)
+        , params_(params)
     {
     }
 
@@ -83,20 +83,20 @@ public:
 
         if (J.needed()) {
             cv::Mat jacobians;
-            projectPoints(objectPoints, expected, rvec, tvec, params,
+            projectPoints(objectPoints_, expected, rvec, tvec, params_,
                           jacobians);
 
             jacobians.colRange(8, 14).copyTo(J);
         }
         else {
-            projectPoints(objectPoints, expected, rvec, tvec, params,
+            projectPoints(objectPoints_, expected, rvec, tvec, params_,
                           cv::noArray());
         }
 
         // Subtracted expected projections from the detected coordinates to
         // avoid negating the Jacobian
         cv::Mat tmp;
-        cv::subtract(expected, imagePoints, tmp);
+        cv::subtract(expected, imagePoints_, tmp);
 
         // Flatten the matrix to a column vector
         tmp = tmp.reshape(1);
@@ -106,9 +106,9 @@ public:
     }
 
 private:
-    const cv::Mat& imagePoints;
-    const cv::Mat& objectPoints;
-    const cv::internal::IntrinsicParams& params;
+    const cv::Mat& imagePoints_;
+    const cv::Mat& objectPoints_;
+    const cv::internal::IntrinsicParams& params_;
 };
 
 } // namespace
