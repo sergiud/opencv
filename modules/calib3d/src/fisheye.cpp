@@ -1276,6 +1276,7 @@ void cv::internal::ComputeExtrinsicRefine(const Mat& imagePoints, const Mat& obj
     auto solver = LMSolver::create(callback, MaxIter);
     solver->run(extrinsics);
 
+    // Copy back refined parameters
     const cv::Vec3d r(extrinsics.val);
     const cv::Vec3d t(extrinsics.val + 3);
 
