@@ -81,6 +81,7 @@ public:
 
         cv::Mat expected;
 
+        // Compute the Jacobian only when requested
         if (J.needed()) {
             cv::Mat jacobians;
             projectPoints(objectPoints_, expected, rvec, tvec, params_,
