@@ -127,7 +127,7 @@ public:
             A.copyTo(Ap);
             for( i = 0; i < lx; i++ )
                 Ap.at<double>(i, i) += lambda*D.at<double>(i);
-            solve(Ap, v, d, DECOMP_EIG);
+            solve(Ap, v, d, DECOMP_QR);
             subtract(x, d, xd);
             if( !cb->compute(xd, rd, noArray()) )
                 return -1;
