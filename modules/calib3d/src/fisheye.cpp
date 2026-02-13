@@ -86,7 +86,6 @@ public:
             projectPoints(objectPoints, expected, rvec, tvec, params,
                           jacobians);
 
-            jacobians *= -1;
             jacobians.colRange(8, 14).copyTo(J);
         }
         else {
@@ -94,8 +93,12 @@ public:
                           cv::noArray());
         }
 
+        // Subtracted expected projections from the detected coordinates to
+        // avoid negating the Jacobian
         cv::Mat tmp;
-        cv::subtract(imagePoints, expected, tmp);
+        cv::subtract(expected, imagePoints, tmp);
+
+        // Flatten the matrix to a column vector
         tmp = tmp.reshape(1);
         cv::transpose(tmp, residuals);
 
