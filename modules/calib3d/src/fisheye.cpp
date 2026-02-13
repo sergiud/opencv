@@ -57,6 +57,59 @@ namespace cv { namespace
     void subMatrix(const Mat& src, Mat& dst, const std::vector<uchar>& cols, const std::vector<uchar>& rows);
 }}
 
+namespace {
+
+class ExtrinsicsCallback : public cv::LMSolver::Callback
+{
+public:
+    ExtrinsicsCallback(const cv::Mat& imagePoints, const cv::Mat& objectPoints,
+                       const cv::internal::IntrinsicParams& params)
+        : imagePoints(imagePoints)
+        , objectPoints(objectPoints)
+        , params(params)
+    {
+    }
+
+    bool compute(cv::InputArray extrinsics, cv::OutputArray residuals,
+                 cv::OutputArray J) const override
+    {
+        cv::Vec6d rtvec;
+        extrinsics.copyTo(rtvec);
+
+        const cv::Vec3d rvec(rtvec.val);
+        const cv::Vec3d tvec(rtvec.val + 3);
+
+        cv::Mat expected;
+
+        if (J.needed()) {
+            cv::Mat jacobians;
+            projectPoints(objectPoints, expected, rvec, tvec, params,
+                          jacobians);
+
+            jacobians *= -1;
+            jacobians.colRange(8, 14).copyTo(J);
+        }
+        else {
+            projectPoints(objectPoints, expected, rvec, tvec, params,
+                          cv::noArray());
+        }
+
+        cv::Mat tmp;
+        cv::subtract(imagePoints, expected, tmp);
+        tmp = tmp.reshape(1);
+        cv::transpose(tmp, residuals);
+
+        return true;
+    }
+
+private:
+    const cv::Mat& imagePoints;
+    const cv::Mat& objectPoints;
+    const cv::internal::IntrinsicParams& params;
+};
+
+} // namespace
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// cv::fisheye::projectPoints
 
@@ -1210,46 +1263,27 @@ void cv::internal::projectPoints(cv::InputArray objectPoints, cv::OutputArray im
 
 void cv::internal::ComputeExtrinsicRefine(const Mat& imagePoints, const Mat& objectPoints, Mat& rvec,
                             Mat&  tvec, Mat& J, const int MaxIter,
-                            const IntrinsicParams& param, const double thresh_cond)
+                            const IntrinsicParams& param)
 {
     CV_Assert(!objectPoints.empty() && objectPoints.type() == CV_64FC3);
     CV_Assert(!imagePoints.empty() && imagePoints.type() == CV_64FC2);
     CV_Assert(rvec.total() > 2 && tvec.total() > 2);
     Vec6d extrinsics(rvec.at<double>(0), rvec.at<double>(1), rvec.at<double>(2),
                     tvec.at<double>(0), tvec.at<double>(1), tvec.at<double>(2));
-    double change = 1;
-    int iter = 0;
 
-    while (change > 1e-10 && iter < MaxIter)
-    {
-        std::vector<Point2d> x;
-        Mat jacobians;
-        projectPoints(objectPoints, x, rvec, tvec, param, jacobians);
+    auto callback =
+        cv::makePtr<ExtrinsicsCallback>(imagePoints, objectPoints, param);
+    auto solver = LMSolver::create(callback, MaxIter);
+    solver->run(extrinsics);
 
-        Mat ex = imagePoints - Mat(x).t();
-        ex = ex.reshape(1, 2);
+    const cv::Vec3d r(extrinsics.val);
+    const cv::Vec3d t(extrinsics.val + 3);
 
-        J = jacobians.colRange(8, 14).clone();
+    cv::copyTo(r, rvec, cv::noArray());
+    cv::copyTo(t, tvec, cv::noArray());
 
-        SVD svd(J, SVD::NO_UV);
-        double condJJ = svd.w.at<double>(0)/svd.w.at<double>(5);
-
-        if (condJJ > thresh_cond)
-            change = 0;
-        else
-        {
-            Vec6d param_innov;
-            solve(J, ex.reshape(1, (int)ex.total()), param_innov, DECOMP_QR);
-
-            Vec6d param_up = extrinsics + param_innov;
-            change = norm(param_innov)/norm(param_up);
-            extrinsics = param_up;
-            iter = iter + 1;
-
-            rvec = Mat(Vec3d(extrinsics.val));
-            tvec = Mat(Vec3d(extrinsics.val+3));
-        }
-    }
+    cv::Mat residuals;
+    callback->compute(extrinsics, residuals, J);
 }
 
 cv::Mat cv::internal::ComputeHomography(Mat m, Mat M)
@@ -1453,7 +1487,7 @@ void cv::internal::CalibrateExtrinsics(InputArrayOfArrays objectPoints, InputArr
 
         InitExtrinsics(imT ? image.t() : image, obT ? object.t() : object, param, omckk, Tckk);
 
-        ComputeExtrinsicRefine(!imT ? image.t() : image, !obT ? object.t() : object, omckk, Tckk, JJ_kk, maxIter, param, thresh_cond);
+        ComputeExtrinsicRefine(!imT ? image.t() : image, !obT ? object.t() : object, omckk, Tckk, JJ_kk, maxIter, param);
         if (check_cond)
         {
             SVD svd(JJ_kk, SVD::NO_UV);
